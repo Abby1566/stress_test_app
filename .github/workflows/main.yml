@@ -1,4 +1,4 @@
-name: Ultimate_iOS_Build
+name: Duck_Stress_Build
 on: [workflow_dispatch]
 jobs:
   build:
@@ -9,21 +9,26 @@ jobs:
         with:
           channel: 'stable'
       
-      - name: Build
+      - name: Configure App Name
         run: |
           flutter create --platforms ios .
+          plutil -replace CFBundleDisplayName -string "鴨力測試" ios/Runner/Info.plist
+          plutil -replace CFBundleName -string "鴨力測試" ios/Runner/Info.plist
+          
+      - name: Build
+        run: |
           flutter pub get
           cd ios && pod install --repo-update && cd ..
           flutter build ios --release --no-codesign
 
-      - name: Create IPA
+      - name: Pack IPA
         run: |
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r StressTest.ipa Payload/
+          zip -r DuckStress.ipa Payload/
 
-      - name: Upload IPA
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: iOS-IPA
-          path: StressTest.ipa
+          name: DuckStress_IPA
+          path: DuckStress.ipa
