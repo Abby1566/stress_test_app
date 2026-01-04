@@ -1,5 +1,5 @@
-name: stress_test_app
-description: "Professional iOS Stress Test Tool V16"
+name: pro_stress_app
+description: "Ultimate Stress Test V18"
 version: 1.0.0+1
 publish_to: 'none'
 
@@ -10,13 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  battery_plus: ^6.1.0
   wakelock_plus: ^1.2.8
+  path_provider: ^2.1.2
   screen_brightness: ^1.0.1
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
