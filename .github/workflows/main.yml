@@ -1,4 +1,4 @@
-name: Ultimate_iOS_Build
+name: Manual_Payload_Package
 on: [workflow_dispatch]
 jobs:
   build:
@@ -9,32 +9,22 @@ jobs:
         with:
           channel: 'stable'
       
-      - name: Force Build And Pack
+      - name: Build Runner App
         run: |
-          # 1. 建立 iOS 基礎
           flutter create --platforms ios .
-          
-          # 2. 注入權限 (那個咚咚)
-          find ios/Runner -name "Info.plist" -exec sed -i '' '/<dict>/a \
-          <key>NSBrightnessUsageDescription</key><string>壓力測試需要</string>\
-          <key>UIFileSharingEnabled</key><true/>\
-          <key>LSSupportsOpeningDocumentsInPlace</key><true/>' {} +
-          
-          # 3. 獲取套件
           flutter pub get
           cd ios && pod install --repo-update && cd ..
+          # 編譯成 debug 模式，這不需要任何證書也能生成完整資料夾
+          flutter build ios --debug --no-codesign
 
-          # 4. 強制編譯 (無視簽名報錯)
-          flutter build ios --debug --no-codesign || true
-
-          # 5. 強力搜刮檔案並打包成 IPA
+      - name: Collect Payload
+        run: |
           mkdir -p Payload
-          # 無論檔案在哪個資料夾，通通抓出來
-          find build/ios -name "Runner.app" -exec cp -r {} Payload/ \;
-          zip -r New_Stress_App.ipa Payload
+          # 找到編譯出來的 Runner.app 並放入 Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/ || cp -r build/ios/iphonesimulator/Runner.app Payload/
           
-      - name: Upload Result
+      - name: Upload Folder
         uses: actions/upload-artifact@v4
         with:
-          name: ios-final-ipa
-          path: New_Stress_App.ipa
+          name: Payload_Folder
+          path: Payload/
