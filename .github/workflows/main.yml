@@ -1,4 +1,4 @@
-name: Manual_Payload_Package
+=name: Manual_Payload_Package
 on: [workflow_dispatch]
 jobs:
   build:
@@ -9,22 +9,23 @@ jobs:
         with:
           channel: 'stable'
       
-      - name: Build Runner App
+      - name: Build Simulator App (No Signing Required)
         run: |
           flutter create --platforms ios .
           flutter pub get
           cd ios && pod install --repo-update && cd ..
-          # 編譯成 debug 模式，這不需要任何證書也能生成完整資料夾
-          flutter build ios --debug --no-codesign
+          
+          # 關鍵：編譯成模擬器版本 (x86_64/arm64)，這完全不需要開發者簽名
+          flutter build ios --debug --simulator --no-codesign
 
       - name: Collect Payload
         run: |
           mkdir -p Payload
-          # 找到編譯出來的 Runner.app 並放入 Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/ || cp -r build/ios/iphonesimulator/Runner.app Payload/
+          # 模擬器編譯後的路徑稍微不同，我們精準抓取它
+          cp -r build/ios/iphonesimulator/Runner.app Payload/
           
       - name: Upload Folder
         uses: actions/upload-artifact@v4
         with:
           name: Payload_Folder
-          path: Payload/
+          path: Payload/=
