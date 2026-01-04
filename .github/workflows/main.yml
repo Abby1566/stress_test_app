@@ -11,21 +11,28 @@ jobs:
       
       - name: Build Simulator App (No Signing Required)
         run: |
+          # 1. 建立 iOS 專案基礎
           flutter create --platforms ios .
           flutter pub get
-          cd ios && pod install --repo-update && cd ..
           
-          # 關鍵：編譯成模擬器版本 (x86_64/arm64)，這完全不需要開發者簽名
+          # 2. 處理 iOS 依賴庫
+          cd ios
+          pod install --repo-update
+          cd ..
+          
+          # 3. 關鍵編譯指令：使用模擬器架構避開簽名報錯
           flutter build ios --debug --simulator --no-codesign
 
-      - name: Collect Payload
+      - name: Prepare Payload Folder
         run: |
+          # 建立一個名為 Payload 的資料夾，這是 IPA 的標準格式要求
           mkdir -p Payload
-          # 模擬器編譯後的路徑稍微不同，我們精準抓取它
+          # 將編譯出的 Runner.app 複製進去
           cp -r build/ios/iphonesimulator/Runner.app Payload/
           
-      - name: Upload Folder
+      - name: Upload Runner App
         uses: actions/upload-artifact@v4
         with:
-          name: Payload_Folder
+          name: Runner_App_Folder
+          # 上傳整個 Payload 資料夾
           path: Payload/
