@@ -1,5 +1,5 @@
-name: pro_stress_app
-description: "Fixing Build Errors"
+name: duck_stress_test
+description: "鴨力測試 - 究極硬體壓測工具"
 version: 1.0.0+1
 publish_to: 'none'
 
@@ -13,7 +13,7 @@ dependencies:
   battery_plus: ^6.1.0
   wakelock_plus: ^1.2.8
   path_provider: ^2.1.2
-  screen_brightness: ^1.0.1  # 確保是這個版本
+  screen_brightness: ^1.0.1
 
 flutter:
   uses-material-design: true
