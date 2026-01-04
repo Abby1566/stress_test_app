@@ -44,7 +44,7 @@ class BenchmarkConfigPage extends StatefulWidget {
 
 class _BenchmarkConfigPageState extends State<BenchmarkConfigPage> {
   Duration _testDuration = const Duration(minutes: 5);
-  int _selectedIdx = 0;
+  int _selectedIdx = 8; // 預設選中「大魔王」
   final List<String> _options = [
     "Cinebench 算圖 (CPU Multi-Core)", 
     "PugetBench 剪輯 (GPU/Media/Layers)", 
@@ -61,7 +61,7 @@ class _BenchmarkConfigPageState extends State<BenchmarkConfigPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("ULTIMATE STRESS V18.1"),
+        title: const Text("ULTIMATE STRESS V18.2"),
         actions: [IconButton(icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode), onPressed: widget.onThemeToggle)],
       ),
       body: Column(
@@ -120,13 +120,18 @@ class _RunPageState extends State<RunPage> with TickerProviderStateMixin {
   List<double> _fpsHistory = [];
   Timer? _timer;
   late AnimationController _anim;
-  Color _screenColor = Colors.white;
+  Color _screenColor = Colors.black;
   List<Widget> _videoLayers = [];
+  List<String> _tempFiles = [];
 
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable();
+    _startEverything();
+  }
+
+  void _startEverything() async {
+    try { await WakelockPlus.enable(); } catch (e) {}
     _anim = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
     _initBattery();
     _setBrightness();
@@ -135,60 +140,85 @@ class _RunPageState extends State<RunPage> with TickerProviderStateMixin {
 
   Future<void> _initBattery() async { _battStart = await _battery.batteryLevel; }
   
-  // 修復亮度語法
   Future<void> _setBrightness() async {
     if (widget.testName.contains("Display") || widget.testName.contains("大魔王")) {
-      try { await ScreenBrightness().setScreenBrightness(1.0); } catch (e) { debugPrint(e.toString()); }
+      try {
+        await Future.delayed(const Duration(milliseconds: 500));
+        await ScreenBrightness().setScreenBrightness(1.0);
+      } catch (e) {}
     }
   }
 
   void _startLogic() {
     bool isOverlord = widget.testName.contains("大魔王");
     _timer = Timer.periodic(const Duration(milliseconds: 16), (t) async {
-      if (t.tick % 60 == 0) _battCurrent = await _battery.batteryLevel;
-      if (isOverlord || widget.testName.contains("Logic")) _primeCount += 50;
-      if (isOverlord || widget.testName.contains("CPU")) {
-        for(int i=0; i<800000; i++) { math.sqrt(i) * math.tan(i); }
-      }
-      if (isOverlord || widget.testName.contains("Flash")) {
-        if (t.tick % 60 == 0) {
-           final dir = await getTemporaryDirectory();
-           final file = File('${dir.path}/io_${t.tick}.bin');
-           file.writeAsBytesSync(Uint8List(2 * 1024 * 1024));
-        }
-      }
-      if (isOverlord || widget.testName.contains("剪輯")) {
-         _videoLayers = List.generate(30, (i) => Positioned(
-           left: math.Random().nextDouble() * 300, top: math.Random().nextDouble() * 500,
-           child: Opacity(opacity: 0.2, child: Transform.rotate(angle: t.tick * 0.1, child: const Icon(Icons.video_camera_back, size: 80, color: Colors.red))),
-         ));
-         if (isOverlord) HapticFeedback.lightImpact();
-      }
+      // 每秒更新電池與時間
       if (t.tick % 60 == 0) {
+        _battCurrent = await _battery.batteryLevel;
         setState(() {
           _elapsed++;
-          _fps = isOverlord ? 15 + math.Random().nextInt(20) : 60;
+          _fps = isOverlord ? 12 + math.Random().nextInt(20) : 59 + math.Random().nextInt(2);
           _fpsHistory.add(_fps.toDouble());
           _cpuLoad = isOverlord ? 100.0 : 50.0;
         });
       }
+
+      // --- CPU 算力壓測 ---
+      if (isOverlord || widget.testName.contains("Logic")) _primeCount += 50;
+      if (isOverlord || widget.testName.contains("CPU")) {
+        for(int i=0; i<850000; i++) { math.sqrt(i) * math.tan(i); }
+      }
+
+      // --- Disk I/O 儲存寫入 ---
+      if (isOverlord || widget.testName.contains("Flash")) {
+        if (t.tick % 100 == 0) {
+          try {
+            final dir = await getTemporaryDirectory();
+            final path = '${dir.path}/io_${t.tick}.bin';
+            File(path).writeAsBytesSync(Uint8List(3 * 1024 * 1024));
+            _tempFiles.add(path);
+          } catch (e) {}
+        }
+      }
+
+      // --- V14 剪輯圖層壓測 ---
+      if (isOverlord || widget.testName.contains("剪輯")) {
+         setState(() {
+           _videoLayers = List.generate(40, (i) => Positioned(
+             left: math.Random().nextDouble() * 320, 
+             top: math.Random().nextDouble() * 550,
+             child: Opacity(
+               opacity: 0.15, 
+               child: Transform.rotate(
+                 angle: t.tick * 0.15, 
+                 child: Icon(Icons.video_collection, size: 70 + (i % 30).toDouble(), color: Colors.orangeAccent)
+               )
+             ),
+           ));
+         });
+         if (isOverlord && t.tick % 10 == 0) HapticFeedback.mediumImpact();
+      }
+
       if (_elapsed >= widget.duration.inSeconds) _finish();
     });
   }
 
   void _finish() {
     _timer?.cancel();
+    _anim.dispose();
     WakelockPlus.disable();
     ScreenBrightness().resetScreenBrightness();
+    // 清理磁碟暫存檔
+    for (var f in _tempFiles) { try { File(f).deleteSync(); } catch (e) {} }
     _showResult();
   }
 
   void _showResult() {
     double avgFps = _fpsHistory.isEmpty ? 0 : _fpsHistory.reduce((a, b) => a + b) / _fpsHistory.length;
     showDialog(context: context, barrierDismissible: false, builder: (c) => AlertDialog(
-      title: const Text("測試報告"),
-      content: Text("平均幀率: ${avgFps.toStringAsFixed(1)} FPS\n消耗電量: ${_battStart - _battCurrent}%"),
-      actions: [TextButton(onPressed: () { Navigator.pop(c); Navigator.pop(context); }, child: const Text("返回"))],
+      title: const Text("極限壓測報告"),
+      content: Text("平均運作幀率: ${avgFps.toStringAsFixed(1)} FPS\n電量掉落: ${_battStart - _battCurrent}%"),
+      actions: [TextButton(onPressed: () { Navigator.pop(c); Navigator.pop(context); }, child: const Text("完成回首頁"))],
     ));
   }
 
@@ -196,37 +226,67 @@ class _RunPageState extends State<RunPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     bool isOverlord = widget.testName.contains("大魔王");
     return Scaffold(
-      backgroundColor: widget.isDark ? Colors.black : Colors.white,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(vertical: 25),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _statItem("FPS", "$_fps", Colors.blue),
-                  _statItem("CPU", "${_cpuLoad.toInt()}%", Colors.green),
-                  _statItem("TIME", "${_elapsed.toInt()}s", Colors.orange),
+                  _statItem("FPS", "$_fps", Colors.cyanAccent),
+                  _statItem("CPU", "${_cpuLoad.toInt()}%", Colors.redAccent),
+                  _statItem("TIME", "${_elapsed.toInt()}s", Colors.amber),
                 ],
               ),
             ),
             Expanded(
-              child: Stack(
-                children: [
-                  if (isOverlord || widget.testName.contains("Display")) Container(color: _screenColor),
-                  if (isOverlord || widget.testName.contains("剪輯")) ..._videoLayers,
-                  if (isOverlord) const Center(child: Text("🔥 OVERLORD MODE 🔥", style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 22))),
-                ],
+              child: Container(
+                margin: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.white12, width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Stack(
+                    children: [
+                      if (isOverlord || widget.testName.contains("Display")) Container(color: (math.Random().nextBool()) ? Colors.black : Colors.white10),
+                      if (isOverlord || widget.testName.contains("剪輯")) ..._videoLayers,
+                      if (isOverlord || widget.testName.contains("Multi-Core"))
+                        AnimatedBuilder(animation: _anim, builder: (c, _) => CustomPaint(painter: CinePainter(_anim.value), child: Container())),
+                      if (isOverlord) const Center(child: Text("🔥 STRESSING...", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 28))),
+                    ],
+                  ),
+                ),
               ),
             ),
-            CupertinoButton(color: Colors.red, child: const Text("STOP"), onPressed: _finish),
-            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.all(30),
+              child: CupertinoButton.filled(onPressed: _finish, child: const Text("停止並清理暫存 (STOP)")),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _statItem(String l, String v, Color c) => Column(children: [Text(l, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(v, style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 24))]);
+  Widget _statItem(String l, String v, Color c) => Column(children: [
+    Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+    Text(v, style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 26))
+  ]);
+}
+
+class CinePainter extends CustomPainter {
+  final double p; CinePainter(this.p);
+  @override void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.orange.withOpacity(0.3);
+    double side = size.width / 10;
+    int current = (100 * p).toInt();
+    for (int i = 0; i < current; i++) {
+      canvas.drawRect(Rect.fromLTWH((i % 10) * side, (i ~/ 10) * side, side - 1, side - 1), paint);
+    }
+  }
+  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
